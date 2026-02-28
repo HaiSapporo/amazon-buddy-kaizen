@@ -1,0 +1,46 @@
+[
+    {
+        "keyword": "アディダス",
+        "number": 40,
+        "country": "JP",
+        "filetype": "csv",
+        "category": "aps",
+        "sort": false,
+        "discount": false,
+        "timeout": 500,
+        "random_ua": true
+    },
+    {
+        "keyword": "ナイキ",
+        "number": 40,
+        "country": "JP",
+        "filetype": "csv",
+        "category": "aps",
+        "sort": false,
+        "discount": false,
+        "timeout": 500,
+        "random_ua": true
+    },
+    {
+        "keyword": "iPhone 15",
+        "number": 20,
+        "country": "US",
+        "filetype": "csv",
+        "category": "electronics",
+        "sort": true,
+        "discount": true,
+        "timeout": 1000,
+        "random_ua": true
+    },
+    {
+        "keyword": "gaming headset",
+        "number": 30,
+        "country": "GB",
+        "filetype": "json",
+        "category": "aps",
+        "sort": true,
+        "discount": false,
+        "timeout": 500,
+        "random_ua": true
+    }
+]

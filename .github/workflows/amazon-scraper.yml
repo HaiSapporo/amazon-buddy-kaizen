@@ -1,0 +1,135 @@
+name: Amazon Buddy Scraper
+
+on:
+  # ✅ Cách 1: Chạy thủ công, truyền danh sách JSON ngay lúc chạy
+  workflow_dispatch:
+    inputs:
+      jobs_json:
+        description: |
+          Danh sách các lệnh scrape (JSON array).
+          Mỗi object là một lần chạy độc lập.
+          Ví dụ:
+          [
+            {"keyword":"アディダス","number":40,"country":"JP","filetype":"csv","category":"aps"},
+            {"keyword":"Nike","number":20,"country":"US","filetype":"json","category":"aps"}
+          ]
+        required: true
+        type: string
+        default: |
+          [
+            {"keyword":"アディダス","number":40,"country":"JP","filetype":"csv","category":"aps"},
+            {"keyword":"ナイキ","number":40,"country":"JP","filetype":"csv","category":"aps"}
+          ]
+
+  # ✅ Cách 2: Chạy tự động theo lịch (cron) — bỏ comment để bật
+  # schedule:
+  #   - cron: '0 0 * * 1'  # Mỗi thứ Hai lúc 00:00 UTC
+
+jobs:
+  # ─────────────────────────────────────────
+  # Job 1: Parse danh sách JSON thành matrix
+  # ─────────────────────────────────────────
+  prepare:
+    name: Chuẩn bị danh sách công việc
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Parse JSON input thành matrix
+        id: set-matrix
+        run: |
+          # Lấy input từ workflow_dispatch hoặc dùng danh sách mặc định
+          JOBS_JSON='${{ inputs.jobs_json || vars.DEFAULT_JOBS_JSON }}'
+
+          # Validate JSON hợp lệ
+          echo "$JOBS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" || {
+            echo "❌ JSON không hợp lệ!"
+            exit 1
+          }
+
+          # Output ra matrix
+          echo "matrix=$(echo $JOBS_JSON | jq -c '{include: .}')" >> $GITHUB_OUTPUT
+          echo "✅ Số lượng job: $(echo $JOBS_JSON | jq length)"
+
+  # ─────────────────────────────────────────
+  # Job 2: Chạy scraper cho từng parameter
+  # ─────────────────────────────────────────
+  scrape:
+    name: "Scrape: ${{ matrix.keyword }} (${{ matrix.country }})"
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false   # Không dừng các job khác nếu 1 job lỗi
+      max-parallel: 2    # Tối đa 2 lần chạy song song (tránh bị Amazon chặn)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Cài đặt dependencies
+        run: npm install
+
+      - name: Chạy Amazon Buddy Scraper
+        id: scrape
+        run: |
+          echo "🚀 Bắt đầu scrape: '${{ matrix.keyword }}' tại ${{ matrix.country }}"
+
+          node bin/cli.js products \
+            -k '${{ matrix.keyword }}' \
+            -n ${{ matrix.number || 20 }} \
+            --country '${{ matrix.country || 'US' }}' \
+            --filetype '${{ matrix.filetype || 'csv' }}' \
+            --category '${{ matrix.category || 'aps' }}' \
+            ${{ matrix.sort == true && '--sort' || '' }} \
+            ${{ matrix.discount == true && '--discount' || '' }} \
+            ${{ matrix.random_ua == true && '--random-ua' || '' }} \
+            --timeout ${{ matrix.timeout || 500 }}
+
+          echo "✅ Hoàn thành: '${{ matrix.keyword }}'"
+
+      - name: Tạo tên file output
+        id: filename
+        run: |
+          # Tạo prefix ngày giờ: YYYYMMDD_HHMMSS
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          KEYWORD=$(echo "${{ matrix.keyword }}" | sed 's/[^a-zA-Z0-9_-]/_/g')
+          COUNTRY="${{ matrix.country || 'US' }}"
+          
+          echo "prefix=${TIMESTAMP}_${KEYWORD}_${COUNTRY}" >> $GITHUB_OUTPUT
+
+      - name: Upload kết quả lên Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "scrape-${{ steps.filename.outputs.prefix }}"
+          path: |
+            *.csv
+            *.json
+          retention-days: 30     # Giữ file trong 30 ngày
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────
+  # Job 3: Tổng kết sau khi tất cả job xong
+  # ─────────────────────────────────────────
+  summary:
+    name: Tổng kết kết quả
+    needs: scrape
+    runs-on: ubuntu-latest
+    if: always()  # Luôn chạy dù có job lỗi hay không
+    steps:
+      - name: Tóm tắt kết quả
+        run: |
+          echo "## 📊 Kết quả Scraping" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Trạng thái | Chi tiết |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Thành công | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🕐 Thời gian | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 File kết quả được lưu trong **Actions Artifacts** (giữ 30 ngày)" >> $GITHUB_STEP_SUMMARY

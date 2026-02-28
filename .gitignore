@@ -1,0 +1,17 @@
+# Dependencies - KHÔNG đẩy lên (nặng, tự cài bằng npm install)
+node_modules/
+
+# File output của scraper - KHÔNG đẩy lên
+*.csv
+*.json
+!package.json
+!package-lock.json
+!.github/jobs-example.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
