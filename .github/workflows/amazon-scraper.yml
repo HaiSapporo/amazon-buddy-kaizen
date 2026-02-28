@@ -106,13 +106,21 @@ jobs:
           COUNTRY="${{ matrix.country || 'US' }}"
           PREFIX="${TIMESTAMP}_${KEYWORD}_${COUNTRY}"
 
-          # Di chuyển tất cả file csv/json ra thư mục đích
-          for f in *.csv *.json; do
+          # Scraper tạo file theo pattern: products(keyword)_timestamp.csv
+          # Chỉ move đúng các file đó, KHÔNG move package.json hay file cấu hình khác
+          MOVED=0
+          for f in products\(* reviews\(* asin\(*; do
             [ -f "$f" ] || continue
             EXT="${f##*.}"
             mv "$f" "content-output/${PREFIX}.${EXT}"
             echo "📁 Đã lưu: content-output/${PREFIX}.${EXT}"
+            MOVED=$((MOVED+1))
           done
+
+          if [ "$MOVED" -eq 0 ]; then
+            echo "⚠️ Không tìm thấy file output nào! Amazon có thể đã chặn request."
+            exit 1
+          fi
 
       - name: Commit và push file CSV về repo
         env:
