@@ -91,10 +91,12 @@ jobs:
             --category '${{ matrix.category || 'aps' }}' \
             ${{ matrix.sort == true && '--sort' || '' }} \
             ${{ matrix.discount == true && '--discount' || '' }} \
-            ${{ matrix.random_ua == true && '--random-ua' || '' }} \
-            --timeout ${{ matrix.timeout || 500 }}
+            --random-ua \
+            --timeout ${{ matrix.timeout || 1000 }}
 
-          echo "✅ Hoàn thành: '${{ matrix.keyword }}'"
+          echo "--- Danh sách file sau khi scrape ---"
+          ls -la .
+          echo "-------------------------------------"
 
       - name: Di chuyển file đầu ra vào content-output/
         run: |
