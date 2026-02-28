@@ -1,9 +1,11 @@
 # Dependencies - KHÔNG đẩy lên (nặng, tự cài bằng npm install)
 node_modules/
 
-# File output của scraper - KHÔNG đẩy lên
+# File output của scraper - KHÔNG đẩy lên (ngoại trừ trong content-output/)
 *.csv
 *.json
+!content-output/**/*.csv
+!content-output/**/*.json
 !package.json
 !package-lock.json
 !.github/jobs-example.json

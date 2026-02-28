@@ -94,25 +94,39 @@ jobs:
 
           echo "✅ Hoàn thành: '${{ matrix.keyword }}'"
 
-      - name: Tạo tên file output
-        id: filename
+      - name: Di chuyển file đầu ra vào content-output/
         run: |
-          # Tạo prefix ngày giờ: YYYYMMDD_HHMMSS
+          mkdir -p content-output
+
+          # Tạo prefix: YYYYMMDD_HHMMSS_KEYWORD_COUNTRY
           TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
           KEYWORD=$(echo "${{ matrix.keyword }}" | sed 's/[^a-zA-Z0-9_-]/_/g')
           COUNTRY="${{ matrix.country || 'US' }}"
-          
-          echo "prefix=${TIMESTAMP}_${KEYWORD}_${COUNTRY}" >> $GITHUB_OUTPUT
+          PREFIX="${TIMESTAMP}_${KEYWORD}_${COUNTRY}"
 
-      - name: Upload kết quả lên Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: "scrape-${{ steps.filename.outputs.prefix }}"
-          path: |
-            *.csv
-            *.json
-          retention-days: 30     # Giữ file trong 30 ngày
-          if-no-files-found: warn
+          # Di chuyển tất cả file csv/json ra thư mục đích
+          for f in *.csv *.json; do
+            [ -f "$f" ] || continue
+            EXT="${f##*.}"
+            mv "$f" "content-output/${PREFIX}.${EXT}"
+            echo "📁 Đã lưu: content-output/${PREFIX}.${EXT}"
+          done
+
+      - name: Commit và push file CSV về repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add content-output/
+
+          # Chỉ commit nếu có thay đổi thực sự
+          if git diff --cached --quiet; then
+            echo "⚠️ Không có file mới để commit."
+          else
+            git commit -m "data: scrape '${{ matrix.keyword }}' (${{ matrix.country }}) - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin main
+            echo "✅ Đã push file về repo thành công!"
+          fi
 
   # ─────────────────────────────────────────
   # Job 3: Tổng kết sau khi tất cả job xong
@@ -121,7 +135,7 @@ jobs:
     name: Tổng kết kết quả
     needs: scrape
     runs-on: ubuntu-latest
-    if: always()  # Luôn chạy dù có job lỗi hay không
+    if: always()
     steps:
       - name: Tóm tắt kết quả
         run: |
@@ -132,4 +146,4 @@ jobs:
           echo "| ✅ Thành công | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🕐 Thời gian | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📁 File kết quả được lưu trong **Actions Artifacts** (giữ 30 ngày)" >> $GITHUB_STEP_SUMMARY
+          echo "📁 File kết quả được lưu tại thư mục **content-output/** trong repo" >> $GITHUB_STEP_SUMMARY
