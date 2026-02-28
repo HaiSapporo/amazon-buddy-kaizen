@@ -58,10 +58,12 @@ jobs:
     name: "Scrape: ${{ matrix.keyword }} (${{ matrix.country }})"
     needs: prepare
     runs-on: ubuntu-latest
+    permissions:
+      contents: write    # ← Cho phép bot commit và push vào repo
     strategy:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false   # Không dừng các job khác nếu 1 job lỗi
-      max-parallel: 2    # Tối đa 2 lần chạy song song (tránh bị Amazon chặn)
+      max-parallel: 1    # Đặt 1 để tránh xung đột git push đồng thời
 
     steps:
       - name: Checkout code
@@ -113,9 +115,14 @@ jobs:
           done
 
       - name: Commit và push file CSV về repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Dùng GITHUB_TOKEN để có quyền push
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
 
           git add content-output/
 
