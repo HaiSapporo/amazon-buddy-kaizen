@@ -28,7 +28,8 @@ const startScraper = async (argv) => {
                 break;
         }
     } catch (error) {
-        console.log(error);
+        console.error('❌ Lỗi scraper:', error.message || error);
+        process.exit(1);
     }
 };
 
