@@ -1,69 +1,21 @@
 name: Amazon Buddy Scraper
 
 on:
-  # ✅ Cách 1: Chạy thủ công, truyền danh sách JSON ngay lúc chạy
+  # ✅ Chạy thủ công (trigger bằng tay từ GitHub UI)
   workflow_dispatch:
-    inputs:
-      jobs_json:
-        description: |
-          Danh sách các lệnh scrape (JSON array).
-          Mỗi object là một lần chạy độc lập.
-          Ví dụ:
-          [
-            {"keyword":"アディダス","number":40,"country":"JP","filetype":"csv","category":"aps"},
-            {"keyword":"Nike","number":20,"country":"US","filetype":"json","category":"aps"}
-          ]
-        required: true
-        type: string
-        default: |
-          [
-            {"keyword":"アディダス","number":40,"country":"JP","filetype":"csv","category":"aps"},
-            {"keyword":"ナイキ","number":40,"country":"JP","filetype":"csv","category":"aps"}
-          ]
 
-  # ✅ Cách 2: Chạy tự động theo lịch (cron) — bỏ comment để bật
-  # schedule:
-  #   - cron: '0 0 * * 1'  # Mỗi thứ Hai lúc 00:00 UTC
+  # ✅ Chạy tự động theo lịch — chỉnh cron để đổi giờ
+  schedule:
+    - cron: '0 1 * * 1'   # Mỗi thứ Hai 01:00 UTC (10:00 JST)
+    # - cron: '0 1 * * *' # Mỗi ngày 01:00 UTC
+    # - cron: '0 1 * * 1,4' # Thứ Hai + Thứ Năm
 
 jobs:
-  # ─────────────────────────────────────────
-  # Job 1: Parse danh sách JSON thành matrix
-  # ─────────────────────────────────────────
-  prepare:
-    name: Chuẩn bị danh sách công việc
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Parse JSON input thành matrix
-        id: set-matrix
-        run: |
-          # Lấy input từ workflow_dispatch hoặc dùng danh sách mặc định
-          JOBS_JSON='${{ inputs.jobs_json || vars.DEFAULT_JOBS_JSON }}'
-
-          # Validate JSON hợp lệ
-          echo "$JOBS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" || {
-            echo "❌ JSON không hợp lệ!"
-            exit 1
-          }
-
-          # Output ra matrix
-          echo "matrix=$(echo $JOBS_JSON | jq -c '{include: .}')" >> $GITHUB_OUTPUT
-          echo "✅ Số lượng job: $(echo $JOBS_JSON | jq length)"
-
-  # ─────────────────────────────────────────
-  # Job 2: Chạy scraper cho từng parameter
-  # ─────────────────────────────────────────
   scrape:
-    name: "Scrape: ${{ matrix.keyword }} (${{ matrix.country }})"
-    needs: prepare
+    name: Run scraper (run.js)
     runs-on: ubuntu-latest
     permissions:
-      contents: write    # ← Cho phép bot commit và push vào repo
-    strategy:
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-      fail-fast: false   # Không dừng các job khác nếu 1 job lỗi
-      max-parallel: 1    # Đặt 1 để tránh xung đột git push đồng thời
+      contents: write    # cho phép commit & push
 
     steps:
       - name: Checkout code
@@ -78,78 +30,36 @@ jobs:
       - name: Cài đặt dependencies
         run: npm install
 
-      - name: Chạy Amazon Buddy Scraper
-        id: scrape
+      - name: Chạy run.js (scrape tất cả keyword)
         run: |
-          echo "🚀 Bắt đầu scrape: '${{ matrix.keyword }}' tại ${{ matrix.country }}"
+          echo "🚀 Bắt đầu scraping..."
+          node run.js
+          echo "--- Danh sách file trong content-output/ ---"
+          ls -lh content-output/ || echo "(thư mục rỗng)"
 
-          node bin/cli.js products \
-            -k '${{ matrix.keyword }}' \
-            -n ${{ matrix.number || 20 }} \
-            --country '${{ matrix.country || 'US' }}' \
-            --filetype '${{ matrix.filetype || 'csv' }}' \
-            --category '${{ matrix.category || 'aps' }}' \
-            ${{ matrix.sort == true && '--sort' || '' }} \
-            ${{ matrix.discount == true && '--discount' || '' }} \
-            --random-ua \
-            --timeout ${{ matrix.timeout || 1000 }}
-
-          echo "--- Danh sách file sau khi scrape ---"
-          ls -la .
-          echo "-------------------------------------"
-
-      - name: Di chuyển file đầu ra vào content-output/
-        run: |
-          mkdir -p content-output
-
-          # Tạo prefix: YYYYMMDD_HHMMSS_KEYWORD_COUNTRY
-          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
-          KEYWORD=$(echo "${{ matrix.keyword }}" | sed 's/[^a-zA-Z0-9_-]/_/g')
-          COUNTRY="${{ matrix.country || 'US' }}"
-          PREFIX="${TIMESTAMP}_${KEYWORD}_${COUNTRY}"
-
-          # Scraper tạo file theo pattern: products(keyword)_timestamp.csv
-          # Chỉ move đúng các file đó, KHÔNG move package.json hay file cấu hình khác
-          MOVED=0
-          for f in products\(* reviews\(* asin\(*; do
-            [ -f "$f" ] || continue
-            EXT="${f##*.}"
-            mv "$f" "content-output/${PREFIX}.${EXT}"
-            echo "📁 Đã lưu: content-output/${PREFIX}.${EXT}"
-            MOVED=$((MOVED+1))
-          done
-
-          if [ "$MOVED" -eq 0 ]; then
-            echo "⚠️ Không tìm thấy file output nào! Amazon có thể đã chặn request."
-            exit 1
-          fi
-
-      - name: Commit và push file CSV về repo
+      - name: Commit và push file output về repo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Dùng GITHUB_TOKEN để có quyền push
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+
+          # Pull trước để tránh conflict
+          git pull --rebase origin main || true
 
           git add content-output/
 
-          # Chỉ commit nếu có thay đổi thực sự
           if git diff --cached --quiet; then
-            echo "⚠️ Không có file mới để commit."
+            echo "⚠️  Không có file mới để commit."
           else
-            git commit -m "data: scrape '${{ matrix.keyword }}' (${{ matrix.country }}) - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "data: scrape $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push origin main
-            echo "✅ Đã push file về repo thành công!"
+            echo "✅ Đã push file về repo!"
           fi
 
-  # ─────────────────────────────────────────
-  # Job 3: Tổng kết sau khi tất cả job xong
-  # ─────────────────────────────────────────
   summary:
-    name: Tổng kết kết quả
+    name: Tổng kết
     needs: scrape
     runs-on: ubuntu-latest
     if: always()
@@ -160,7 +70,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Trạng thái | Chi tiết |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|---------|" >> $GITHUB_STEP_SUMMARY
-          echo "| ✅ Thành công | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.scrape.result == 'success' && '✅ Thành công' || '❌ Thất bại' }} | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🕐 Thời gian | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📁 File kết quả được lưu tại thư mục **content-output/** trong repo" >> $GITHUB_STEP_SUMMARY
+          echo "📁 File lưu tại **content-output/** trong repo — xem [JOBS trong run.js](run.js)" >> $GITHUB_STEP_SUMMARY
