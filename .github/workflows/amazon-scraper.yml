@@ -1,21 +1,35 @@
 name: Amazon Buddy Scraper
 
 on:
-  # ✅ Chạy thủ công (trigger bằng tay từ GitHub UI)
+  # ✅ Chạy thủ công
   workflow_dispatch:
 
-  # ✅ Chạy tự động theo lịch — chỉnh cron để đổi giờ
+  # ✅ Mỗi ngày 6:00 JST = 21:00 UTC hôm trước
   schedule:
-    - cron: '0 1 * * 1'   # Mỗi thứ Hai 01:00 UTC (10:00 JST)
-    # - cron: '0 1 * * *' # Mỗi ngày 01:00 UTC
-    # - cron: '0 1 * * 1,4' # Thứ Hai + Thứ Năm
+    - cron: '0 21 * * *'
 
 jobs:
+  # ─────────────────────────────────────────────────────
+  # Mỗi keyword = 1 job riêng, chạy tuần tự (max-parallel: 1)
+  # Mỗi job ở IP/VM khác nhau → giảm nguy cơ bị Amazon block
+  # Delay tăng dần giữa các job (sleep) để trải đều traffic
+  # ─────────────────────────────────────────────────────
   scrape:
-    name: Run scraper (run.js)
+    name: "[${{ matrix.index }}] ${{ matrix.keyword }}"
     runs-on: ubuntu-latest
     permissions:
-      contents: write    # cho phép commit & push
+      contents: write
+    strategy:
+      max-parallel: 1      # tuần tự — không chạy đồng thời
+      fail-fast: false     # job sau vẫn chạy dù job trước lỗi
+      matrix:
+        include:
+          - { index: 1, keyword: 'アディダス',    delay_min: 0  }
+          - { index: 2, keyword: 'ナイキ',        delay_min: 8  }
+          - { index: 3, keyword: 'プーマ',        delay_min: 16 }
+          - { index: 4, keyword: 'ニューバランス', delay_min: 24 }
+          - { index: 5, keyword: 'アシックス',    delay_min: 32 }
+          - { index: 6, keyword: 'レイバン',      delay_min: 40 }
 
     steps:
       - name: Checkout code
@@ -30,14 +44,23 @@ jobs:
       - name: Cài đặt dependencies
         run: npm install
 
-      - name: Chạy run.js (scrape tất cả keyword)
+      # Delay tăng dần giữa các keyword — mỗi job cách nhau ~8 phút
+      - name: "⏳ Delay ${{ matrix.delay_min }} phút (chống block)"
+        if: matrix.delay_min > 0
         run: |
-          echo "🚀 Bắt đầu scraping..."
-          node run.js
-          echo "--- Danh sách file trong content-output/ ---"
-          ls -lh content-output/ || echo "(thư mục rỗng)"
+          echo "Chờ ${{ matrix.delay_min }} phút trước khi scrape '${{ matrix.keyword }}'..."
+          sleep $(( ${{ matrix.delay_min }} * 60 ))
 
-      - name: Commit và push file output về repo
+      - name: "🚀 Scrape: ${{ matrix.keyword }}"
+        env:
+          KEYWORD: ${{ matrix.keyword }}
+        run: |
+          echo "Bắt đầu: '${{ matrix.keyword }}'"
+          node run.js
+          echo "--- content-output/ ---"
+          ls -lh content-output/ | tail -5
+
+      - name: Commit & push output
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -45,17 +68,17 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
 
-          # Pull trước để tránh conflict
+          # Pull rebase để tránh conflict từ job trước
           git pull --rebase origin main || true
 
           git add content-output/
 
           if git diff --cached --quiet; then
-            echo "⚠️  Không có file mới để commit."
+            echo "⚠️  Không có file mới."
           else
-            git commit -m "data: scrape $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "data: ${{ matrix.keyword }} - $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push origin main
-            echo "✅ Đã push file về repo!"
+            echo "✅ Pushed!"
           fi
 
   summary:
@@ -64,13 +87,17 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Tóm tắt kết quả
+      - name: Tóm tắt
         run: |
-          echo "## 📊 Kết quả Scraping" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Kết quả Scraping $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Trạng thái | Chi tiết |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|---------|" >> $GITHUB_STEP_SUMMARY
-          echo "| ${{ needs.scrape.result == 'success' && '✅ Thành công' || '❌ Thất bại' }} | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🕐 Thời gian | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| # | Keyword | Kết quả |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | アディダス    | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | ナイキ        | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 | プーマ        | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | ニューバランス | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 5 | アシックス    | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 6 | レイバン      | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📁 File lưu tại **content-output/** trong repo — xem [JOBS trong run.js](run.js)" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Output: \`content-output/\` | ⚙️ Cấu hình: [run.js](run.js)" >> $GITHUB_STEP_SUMMARY
