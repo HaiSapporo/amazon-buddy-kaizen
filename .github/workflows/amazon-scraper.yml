@@ -1,19 +1,13 @@
 name: Amazon Buddy Scraper
 
 on:
-  # ✅ Chạy thủ công
   workflow_dispatch:
 
-  # ✅ Mỗi ngày 6:00 JST = 21:00 UTC hôm trước
+  # Mỗi ngày 6:00 JST = 21:00 UTC hôm trước
   schedule:
     - cron: '0 21 * * *'
 
 jobs:
-  # ─────────────────────────────────────────────────────
-  # Mỗi keyword = 1 job riêng, chạy tuần tự (max-parallel: 1)
-  # Mỗi job ở IP/VM khác nhau → giảm nguy cơ bị Amazon block
-  # Delay tăng dần giữa các job (sleep) để trải đều traffic
-  # ─────────────────────────────────────────────────────
   scrape:
     name: "[${{ matrix.index }}] ${{ matrix.keyword }}"
     runs-on: ubuntu-latest
@@ -44,7 +38,7 @@ jobs:
       - name: Cài đặt dependencies
         run: npm install
 
-      # Delay tăng dần giữa các keyword — mỗi job cách nhau ~8 phút
+      # Delay tăng dần — mỗi keyword cách nhau ~8 phút, IP VM khác nhau
       - name: "⏳ Delay ${{ matrix.delay_min }} phút (chống block)"
         if: matrix.delay_min > 0
         run: |
@@ -60,25 +54,53 @@ jobs:
           echo "--- content-output/ ---"
           ls -lh content-output/ | tail -5
 
-      - name: Commit & push output
+      # ── Commit file CSV vào repo scraper (để lưu trữ) ──
+      - name: Commit CSV vào amazon-buddy-kaizen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-
-          # Pull rebase để tránh conflict từ job trước
           git pull --rebase origin main || true
-
           git add content-output/
-
           if git diff --cached --quiet; then
-            echo "⚠️  Không có file mới."
+            echo "⚠️  Không có CSV mới."
+          else
+            git commit -m "csv: ${{ matrix.keyword }} - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin main
+          fi
+
+      # ── Push file JSON sang collectsaleamazonjapan/src/content/ ──
+      - name: "📤 Push JSON → collectsaleamazonjapan"
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          # Clone repo web
+          git clone https://x-access-token:${GH_PAT}@github.com/HaiSapporo/collectsaleamazonjapan.git /tmp/web_repo
+
+          # Copy tất cả file JSON mới vào src/content/
+          JSON_FILES=$(ls content-output/*.json 2>/dev/null)
+          if [ -z "$JSON_FILES" ]; then
+            echo "⚠️  Không có file JSON nào để push."
+            exit 0
+          fi
+
+          cp content-output/*.json /tmp/web_repo/src/content/
+          echo "📄 Files copied:"
+          ls content-output/*.json
+
+          cd /tmp/web_repo
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add src/content/
+          if git diff --cached --quiet; then
+            echo "⚠️  Không có thay đổi mới."
           else
             git commit -m "data: ${{ matrix.keyword }} - $(date -u '+%Y-%m-%d %H:%M UTC')"
-            git push origin main
-            echo "✅ Pushed!"
+            git push
+            echo "✅ Đã push JSON vào collectsaleamazonjapan/src/content/"
           fi
 
   summary:
@@ -89,7 +111,7 @@ jobs:
     steps:
       - name: Tóm tắt
         run: |
-          echo "## 📊 Kết quả Scraping $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Scraping $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| # | Keyword | Kết quả |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---------|---------|" >> $GITHUB_STEP_SUMMARY
@@ -100,4 +122,4 @@ jobs:
           echo "| 5 | アシックス    | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 6 | レイバン      | ${{ needs.scrape.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📁 Output: \`content-output/\` | ⚙️ Cấu hình: [run.js](run.js)" >> $GITHUB_STEP_SUMMARY
+          echo "📁 JSON → \`collectsaleamazonjapan/src/content/\` → Cloudflare Pages rebuild" >> $GITHUB_STEP_SUMMARY

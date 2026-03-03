@@ -12,12 +12,12 @@ const CONST = require('./lib/constant');
 //  ✏️ CẤU HÌNH: Danh sách keyword mặc định (local run)
 // ═══════════════════════════════════════════════════════
 const JOBS = [
-    { keyword: 'アディダス', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
-    { keyword: 'ナイキ', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
-    { keyword: 'プーマ', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
-    { keyword: 'ニューバランス', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
-    { keyword: 'アシックス', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
-    { keyword: 'レイバン', country: 'JP', number: 40, filetype: 'csv', category: 'aps' },
+    { keyword: 'アディダス', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
+    { keyword: 'ナイキ', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
+    { keyword: 'プーマ', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
+    { keyword: 'ニューバランス', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
+    { keyword: 'アシックス', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
+    { keyword: 'レイバン', country: 'JP', number: 40, filetype: 'all', category: 'aps' },
 ];
 // ─────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ async function runJob(job, index, total) {
         sponsored: false,
         proxy: [],
         cli: true,
-        filetype: 'csv',
+        filetype: filetype,
         scrapeType: 'products',
         asin: '',
         sort: false,
