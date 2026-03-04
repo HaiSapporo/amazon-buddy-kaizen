@@ -1,0 +1,86 @@
+[
+  {
+    "position": {
+      "page": 1,
+      "position": 15,
+      "global_position": 30
+    },
+    "asin": "B00TM14XZ6",
+    "price": {
+      "discounted": true,
+      "current_price": 3888,
+      "currency": "JPY",
+      "before_price": 5734,
+      "savings_amount": 1846,
+      "savings_percent": 32.19
+    },
+    "reviews": {
+      "total_reviews": 0,
+      "rating": 0
+    },
+    "url": "https://www.amazon.jp/dp/B00TM14XZ6",
+    "score": 0,
+    "sponsored": false,
+    "amazonChoice": false,
+    "bestSeller": false,
+    "amazonPrime": false,
+    "title": "Texcy Luxe TU-7774 Men's Business Shoes, Asics Corporation, Lightweight, Genuine Leather",
+    "thumbnail": "https://m.media-amazon.com/images/I/71yqn61GL-L._AC_UL320_.jpg"
+  },
+  {
+    "position": {
+      "page": 1,
+      "position": 41,
+      "global_position": 56
+    },
+    "asin": "B081CQL5TL",
+    "price": {
+      "discounted": true,
+      "current_price": 2988,
+      "currency": "JPY",
+      "before_price": 4229,
+      "savings_amount": 1241,
+      "savings_percent": 29.34
+    },
+    "reviews": {
+      "total_reviews": 0,
+      "rating": 0
+    },
+    "url": "https://www.amazon.jp/dp/B081CQL5TL",
+    "score": 0,
+    "sponsored": false,
+    "amazonChoice": false,
+    "bestSeller": false,
+    "amazonPrime": false,
+    "title": "Lady Woker (レディワーカー) Women's Asics Wedge Sole Pumps, Wide 3E Equivalent, 1.2 inch (3 cm) Heels LO-17550 Pumps",
+    "thumbnail": "https://m.media-amazon.com/images/I/61obnC6RGQL._AC_UL320_.jpg"
+  },
+  {
+    "position": {
+      "page": 2,
+      "position": 9,
+      "global_position": 65
+    },
+    "asin": "B0CXPZJZ4B",
+    "price": {
+      "discounted": true,
+      "current_price": 4367,
+      "currency": "JPY",
+      "before_price": 5663,
+      "savings_amount": 1296,
+      "savings_percent": 22.89
+    },
+    "reviews": {
+      "total_reviews": 0,
+      "rating": 0
+    },
+    "url": "https://www.amazon.jp/dp/B0CXPZJZ4B",
+    "score": 0,
+    "sponsored": false,
+    "amazonChoice": false,
+    "bestSeller": false,
+    "amazonPrime": false,
+    "title": "Lady woker(レディワーカー) レディース アシックス商事 ジブンローファー 生活防水 幅広3E相当 学生ローファー",
+    "thumbnail": "https://m.media-amazon.com/images/I/61tNUGIkPWL._AC_UL320_.jpg"
+  }
+]
